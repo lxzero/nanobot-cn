@@ -327,6 +327,84 @@ class AgentLoop:
         self._running = False
         logger.info("Agent loop stopping")
 
+    def _build_skills_list(self) -> str:
+        """Build a formatted list of all installed skills for the /skills command."""
+        skills = self.context.skills.list_skills(filter_unavailable=False)
+        if not skills:
+            return "🧩 暂无已安装的技能。"
+
+        builtin = [s for s in skills if s["source"] == "builtin"]
+        workspace = [s for s in skills if s["source"] == "workspace"]
+
+        lines: list[str] = [f"🧩 **已安装技能（共 {len(skills)} 个）**\n"]
+
+        def _fmt_skill(s: dict) -> str:
+            name = s["name"]
+            desc = self.context.skills._get_skill_description(name)
+            meta = self.context.skills._get_skill_meta(name)
+            ok = self.context.skills._check_requirements(meta)
+            if ok:
+                return f"  ✅ **{name}** — {desc}"
+            missing = self.context.skills._get_missing_requirements(meta)
+            return f"  ❌ **{name}** — {desc}（缺少：{missing}）"
+
+        if builtin:
+            lines.append(f"**内置技能**（{len(builtin)} 个）")
+            lines.extend(_fmt_skill(s) for s in sorted(builtin, key=lambda x: x["name"]))
+
+        if workspace:
+            lines.append(f"\n**工作区技能**（{len(workspace)} 个）")
+            lines.extend(_fmt_skill(s) for s in sorted(workspace, key=lambda x: x["name"]))
+
+        return "\n".join(lines)
+
+    def _build_status(self, session: Session) -> str:
+        """Build a status report for the /status command."""
+        import platform
+        from datetime import datetime
+
+        lines: list[str] = ["🐈 **nanobot 服务状态**\n"]
+
+        # 模型与运行环境
+        lines.append(f"**模型**：{self.model}")
+        system = platform.system()
+        runtime = f"{'macOS' if system == 'Darwin' else system} {platform.machine()}, Python {platform.python_version()}"
+        lines.append(f"**运行环境**：{runtime}")
+        lines.append(f"**工作区**：{self.workspace}")
+
+        # 当前会话
+        msg_count = len(session.messages)
+        lines.append(f"\n**当前会话**")
+        lines.append(f"  消息数：{msg_count}")
+        lines.append(f"  已整合：{session.last_consolidated} / {msg_count}")
+
+        # 子代理
+        subagent_count = self.subagents.get_running_count()
+        lines.append(f"\n**子代理**：{'运行中 ' + str(subagent_count) + ' 个' if subagent_count else '无'}")
+
+        # 活跃任务
+        active_tasks = sum(
+            len([t for t in tasks if not t.done()])
+            for tasks in self._active_tasks.values()
+        )
+        lines.append(f"**活跃任务**：{active_tasks} 个")
+
+        # MCP
+        if self._mcp_servers:
+            mcp_status = "已连接" if self._mcp_connected else ("连接中…" if self._mcp_connecting else "未连接")
+            lines.append(f"**MCP 服务器**：{len(self._mcp_servers)} 个（{mcp_status}）")
+
+        # 定时任务
+        if self.cron_service:
+            try:
+                jobs = self.cron_service.list_jobs(include_disabled=False)
+                lines.append(f"**定时任务**：{len(jobs)} 个活跃")
+            except Exception:
+                pass
+
+        lines.append(f"\n**时间**：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        return "\n".join(lines)
+
     async def _process_message(
         self,
         msg: InboundMessage,
@@ -374,12 +452,14 @@ class AgentLoop:
                             return OutboundMessage(
                                 channel=msg.channel, chat_id=msg.chat_id,
                                 content="Memory archival failed, session not cleared. Please try again.",
+                                metadata=msg.metadata,
                             )
             except Exception:
                 logger.exception("/new archival failed for {}", session.key)
                 return OutboundMessage(
                     channel=msg.channel, chat_id=msg.chat_id,
                     content="Memory archival failed, session not cleared. Please try again.",
+                    metadata=msg.metadata,
                 )
             finally:
                 self._consolidating.discard(session.key)
@@ -388,10 +468,19 @@ class AgentLoop:
             self.sessions.save(session)
             self.sessions.invalidate(session.key)
             return OutboundMessage(channel=msg.channel, chat_id=msg.chat_id,
-                                  content="New session started.")
+                                  content="新会话已开启。", metadata=msg.metadata)
         if cmd == "/help":
             return OutboundMessage(channel=msg.channel, chat_id=msg.chat_id,
-                                  content="🐈 nanobot commands:\n/new — Start a new conversation\n/stop — Stop the current task\n/help — Show available commands")
+                                  content="🐈 nanobot 指令：\n/new — 开启新会话\n/stop — 停止当前任务\n/status — 查看服务状态\n/skills — 查看已安装技能\n/help — 显示帮助信息",
+                                  metadata=msg.metadata)
+
+        if cmd == "/status":
+            return OutboundMessage(channel=msg.channel, chat_id=msg.chat_id,
+                                  content=self._build_status(session), metadata=msg.metadata)
+
+        if cmd == "/skills":
+            return OutboundMessage(channel=msg.channel, chat_id=msg.chat_id,
+                                  content=self._build_skills_list(), metadata=msg.metadata)
 
         unconsolidated = len(session.messages) - session.last_consolidated
         if (unconsolidated >= self.memory_window and session.key not in self._consolidating):

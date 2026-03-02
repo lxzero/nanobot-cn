@@ -20,19 +20,18 @@ _SAVE_MEMORY_TOOL = [
         "type": "function",
         "function": {
             "name": "save_memory",
-            "description": "Save the memory consolidation result to persistent storage.",
+            "description": "将记忆整合结果保存到持久存储。",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "history_entry": {
                         "type": "string",
-                        "description": "A paragraph (2-5 sentences) summarizing key events/decisions/topics. "
-                        "Start with [YYYY-MM-DD HH:MM]. Include detail useful for grep search.",
+                        "description": "总结关键事件/决策/话题的段落（2-5 句话）。"
+                        "以 [YYYY-MM-DD HH:MM] 开头。包含对 grep 搜索有用的细节。",
                     },
                     "memory_update": {
                         "type": "string",
-                        "description": "Full updated long-term memory as markdown. Include all existing "
-                        "facts plus new ones. Return unchanged if nothing new.",
+                        "description": "完整更新后的长期记忆（Markdown 格式）。包含所有现有事实及新增内容。如无新内容则原样返回。",
                     },
                 },
                 "required": ["history_entry", "memory_update"],
@@ -64,7 +63,7 @@ class MemoryStore:
 
     def get_memory_context(self) -> str:
         long_term = self.read_long_term()
-        return f"## Long-term Memory\n{long_term}" if long_term else ""
+        return f"## 长期记忆\n{long_term}" if long_term else ""
 
     async def consolidate(
         self,
@@ -102,18 +101,18 @@ class MemoryStore:
             lines.append(f"[{m.get('timestamp', '?')[:16]}] {m['role'].upper()}{tools}: {m['content']}")
 
         current_memory = self.read_long_term()
-        prompt = f"""Process this conversation and call the save_memory tool with your consolidation.
+        prompt = f"""请处理以下对话，并调用 save_memory 工具提交整合结果。
 
-## Current Long-term Memory
-{current_memory or "(empty)"}
+## 当前长期记忆
+{current_memory or "（空）"}
 
-## Conversation to Process
+## 待处理对话
 {chr(10).join(lines)}"""
 
         try:
             response = await provider.chat(
                 messages=[
-                    {"role": "system", "content": "You are a memory consolidation agent. Call the save_memory tool with your consolidation of the conversation."},
+                    {"role": "system", "content": "你是记忆整合代理。请调用 save_memory 工具，对对话内容进行整合归纳。"},
                     {"role": "user", "content": prompt},
                 ],
                 tools=_SAVE_MEMORY_TOOL,

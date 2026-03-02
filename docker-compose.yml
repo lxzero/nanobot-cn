@@ -26,6 +26,6 @@ services:
     <<: *common-config
     profiles:
       - cli
-    command: ["status"]
+    command: ["gateway"]
     stdin_open: true
     tty: true

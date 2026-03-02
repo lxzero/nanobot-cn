@@ -8,6 +8,4 @@ build/
 .git
 .env
 .assets
-node_modules/
-bridge/dist/
 workspace/

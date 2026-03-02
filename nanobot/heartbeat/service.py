@@ -16,18 +16,18 @@ _HEARTBEAT_TOOL = [
         "type": "function",
         "function": {
             "name": "heartbeat",
-            "description": "Report heartbeat decision after reviewing tasks.",
+            "description": "查看任务后报告心跳决策。",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "action": {
                         "type": "string",
                         "enum": ["skip", "run"],
-                        "description": "skip = nothing to do, run = has active tasks",
+                        "description": "skip = 无需执行，run = 有活跃任务",
                     },
                     "tasks": {
                         "type": "string",
-                        "description": "Natural-language summary of active tasks (required for run)",
+                        "description": "活跃任务的自然语言摘要（action 为 run 时必填）",
                     },
                 },
                 "required": ["action"],
@@ -89,9 +89,9 @@ class HeartbeatService:
         """
         response = await self.provider.chat(
             messages=[
-                {"role": "system", "content": "You are a heartbeat agent. Call the heartbeat tool to report your decision."},
+                {"role": "system", "content": "你是心跳代理。请调用 heartbeat 工具报告你的决策。"},
                 {"role": "user", "content": (
-                    "Review the following HEARTBEAT.md and decide whether there are active tasks.\n\n"
+                    "请查看以下 HEARTBEAT.md 内容，判断是否存在需要执行的活跃任务。\n\n"
                     f"{content}"
                 )},
             ],

@@ -167,8 +167,7 @@ class SubagentManager:
                     break
 
             if final_result is None:
-                final_result = "Task completed but no final response was generated."
-
+                final_result = "任务已完成，但未生成最终回复。"
             logger.info("Subagent [{}] completed successfully", task_id)
             await self._announce_result(task_id, label, task, final_result, origin, "ok")
 
@@ -187,17 +186,16 @@ class SubagentManager:
         status: str,
     ) -> None:
         """Announce the subagent result to the main agent via the message bus."""
-        status_text = "completed successfully" if status == "ok" else "failed"
+        status_text = "已成功完成" if status == "ok" else "执行失败"
 
-        announce_content = f"""[Subagent '{label}' {status_text}]
+        announce_content = f"""[子代理 '{label}' {status_text}]
 
-Task: {task}
+任务：{task}
 
-Result:
+结果：
 {result}
 
-Summarize this naturally for the user. Keep it brief (1-2 sentences). Do not mention technical details like "subagent" or task IDs."""
-
+请自然地向用户总结此内容。保持简短（1-2 句话）。不要提及"子代理"或任务 ID 等技术细节。"""
         # Inject as system message to trigger main agent
         msg = InboundMessage(
             channel="system",
@@ -215,19 +213,18 @@ Summarize this naturally for the user. Keep it brief (1-2 sentences). Do not men
         from nanobot.agent.skills import SkillsLoader
 
         time_ctx = ContextBuilder._build_runtime_context(None, None)
-        parts = [f"""# Subagent
+        parts = [f"""# 子代理
 
 {time_ctx}
 
-You are a subagent spawned by the main agent to complete a specific task.
-Stay focused on the assigned task. Your final response will be reported back to the main agent.
+你是由主代理派生的子代理，负责完成特定任务。保持专注，只完成分配的任务。你的最终回复将被汇报给主代理。
 
-## Workspace
+## 工作区
 {self.workspace}"""]
 
         skills_summary = SkillsLoader(self.workspace).build_skills_summary()
         if skills_summary:
-            parts.append(f"## Skills\n\nRead SKILL.md with read_file to use a skill.\n\n{skills_summary}")
+            parts.append(f"## 技能\n\n使用 read_file 读取 SKILL.md 文件来使用技能。\n\n{skills_summary}")
 
         return "\n\n".join(parts)
     
