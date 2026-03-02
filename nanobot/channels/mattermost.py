@@ -121,28 +121,30 @@ class MattermostChannel(BaseChannel):
             return
 
         channel_id = msg.chat_id
-        thread_id = msg.metadata.get("mattermost", {}).get("thread_id") if msg.metadata else None
 
-        # Send text message
-        if msg.content:
+        # Upload media files first to collect file_ids
+        file_ids: list[str] = []
+        for media_path in msg.media or []:
             try:
-                payload = {
+                fid = await self._upload_file(channel_id, media_path)
+                if fid:
+                    file_ids.append(fid)
+            except Exception as e:
+                logger.error("Failed to upload file {}: {}", media_path, e)
+
+        # Create a single post with text + attached files (top-level, not threaded)
+        if msg.content or file_ids:
+            try:
+                payload: dict[str, Any] = {
                     "channel_id": channel_id,
-                    "message": msg.content,
+                    "message": msg.content or "",
                 }
-                if thread_id:
-                    payload["root_id"] = thread_id
+                if file_ids:
+                    payload["file_ids"] = file_ids
 
                 await self._post("/api/v4/posts", payload)
             except Exception as e:
                 logger.error("Failed to send Mattermost message: {}", e)
-
-        # Send media files
-        for media_path in msg.media or []:
-            try:
-                await self._upload_file(channel_id, media_path, thread_id)
-            except Exception as e:
-                logger.error("Failed to upload file {}: {}", media_path, e)
 
     async def _get(self, path: str) -> Any:
         """Make a GET request to Mattermost API."""
@@ -160,23 +162,20 @@ class MattermostChannel(BaseChannel):
         response.raise_for_status()
         return response.json()
 
-    async def _upload_file(self, channel_id: str, file_path: str, thread_id: str | None = None) -> None:
-        """Upload a file to Mattermost."""
+    async def _upload_file(self, channel_id: str, file_path: str) -> str | None:
+        """Upload a file to Mattermost and return the file_id."""
         if not self._client:
-            return
+            return None
 
         path = Path(file_path)
         if not path.exists():
             logger.warning("File not found: {}", file_path)
-            return
+            return None
 
         with open(path, "rb") as f:
             files = {"files": (path.name, f, "application/octet-stream")}
             data = {"channel_id": channel_id}
-            if thread_id:
-                data["root_id"] = thread_id
 
-            # Need to use a new client without Content-Type header for multipart
             headers = {"Authorization": f"Bearer {self.config.token}"}
             async with httpx.AsyncClient(headers=headers, timeout=self._http_timeout) as client:
                 response = await client.post(
@@ -186,9 +185,12 @@ class MattermostChannel(BaseChannel):
                 )
                 response.raise_for_status()
                 result = response.json()
-                file_ids = result.get("file_infos", [])
-                if file_ids:
-                    logger.debug("Uploaded file: {} -> {}", file_path, file_ids[0].get("id"))
+                file_infos = result.get("file_infos", [])
+                if file_infos:
+                    fid = file_infos[0].get("id")
+                    logger.debug("Uploaded file: {} -> {}", file_path, fid)
+                    return fid
+        return None
 
     async def _connect_websocket(self) -> None:
         """Establish WebSocket connection and send auth challenge. Does NOT spawn tasks."""
