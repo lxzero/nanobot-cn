@@ -67,6 +67,8 @@ class EmailConfig(Base):
     allow_from: list[str] = Field(default_factory=list)  # Allowed sender email addresses
 
 
+
+
 class QQConfig(Base):
     """QQ channel configuration using botpy SDK."""
 
