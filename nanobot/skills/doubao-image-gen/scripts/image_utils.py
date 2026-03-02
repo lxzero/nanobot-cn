@@ -11,17 +11,13 @@ import urllib.error
 from datetime import datetime
 
 
-# output/ 目录位于 skill 根目录下（scripts/ 的上级）
-_SKILL_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_OUTPUT_DIR = os.path.join(_SKILL_ROOT, "output")
+DEFAULT_OUTPUT_DIR = os.path.join(os.path.expanduser("~"), ".nanobot", "output")
 
 
 def generate_output_path(prefix="image"):
     """
-    在 skill 根目录的 output/ 下生成带时间戳的文件路径，自动创建目录。
-    
-    Returns:
-        str: 如 /path/to/doubao-image-gen/output/image_20260302_233626.jpg
+    在 ~/.nanobot/output/ 下生成带时间戳的文件路径，自动创建目录。
+    该目录在 Docker 中通过 ~/.nanobot 挂载自动持久化。
     """
     os.makedirs(DEFAULT_OUTPUT_DIR, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
