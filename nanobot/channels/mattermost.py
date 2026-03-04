@@ -201,6 +201,9 @@ class MattermostChannel(BaseChannel):
         self._ws_connection = await ws_connect(
             ws_url,
             additional_headers={"Authorization": f"Bearer {self.config.token}"},
+            ping_interval=30,
+            ping_timeout=30,
+            close_timeout=10,
         )
         logger.info("Mattermost WebSocket connected")
 
