@@ -19,11 +19,12 @@
 
 **有具体时间要求 → 用 Cron**（精确调度，支持一次性、固定间隔、cron 表达式）
 **不关心时间、每次都该检查 → 写 HEARTBEAT.md**（每 30 分钟触发一次）
-**使用 cron 工具操作定时任务，不要直接修改jobs.json文件**
+**使用 cron 工具操作定时任务，不要直接修改 jobs.json 文件，不要通过 exec 调用 nanobot cron 命令**
 
 ### Cron
 
 直接使用 `cron` 工具（非 shell 命令）。支持 `add`、`list`、`remove`、`update` 四个动作。
+从当前会话上下文获取 USER_ID 和 CHANNEL（如 `telegram:8281248569` 中 `8281248569` 是 USER_ID，`telegram` 是 CHANNEL）。
 
 - **add**：创建任务。必须指定 `message` 和调度方式（`cron_expr`/`every_seconds`/`at` 三选一）。`deliver` 控制是否发送结果给用户（默认 true）。
 - **list**：查看所有任务及其 ID。
