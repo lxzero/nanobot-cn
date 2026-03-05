@@ -132,7 +132,10 @@ class CronTool(Tool):
             return CronSchedule(kind="cron", expr=cron_expr, tz=tz), False, None
         elif at:
             from datetime import datetime
-            dt = datetime.fromisoformat(at)
+            try:
+                dt = datetime.fromisoformat(at)
+            except ValueError:
+                return None, False, f"Error: invalid ISO datetime format '{at}'. Expected format: YYYY-MM-DDTHH:MM:SS"
             at_ms = int(dt.timestamp() * 1000)
             return CronSchedule(kind="at", at_ms=at_ms), True, None
         return None, False, None
